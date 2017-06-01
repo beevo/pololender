@@ -1,0 +1,10 @@
+{
+  "loanLimits":{
+    "BTC":0.01,
+    "LTC":1
+  },
+  "loanMax":{
+    "BTC":0.04,
+    "LTC":3
+  }
+}

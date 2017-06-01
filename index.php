@@ -1,45 +1,72 @@
-<link rel="stylesheet" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
-<script src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+<?php
+  function average($arr){
+    return ($arr) ? array_sum($arr)/count($arr) : 0;
+  }
+  require_once('Poloniex.php');
+  // die("C");
+  $json = file_get_contents('config.json');
+  $configObject = json_decode($json);
+  $loanLimits = (array)$configObject->loanLimits;
+  $loanMax = (array)$configObject->loanMax;
+  $lent = false;
+  $polo = new Poloniex();
+  $openLoans = $polo->get_open_loan_offers();
+  if (!empty($openLoans)) {
+    foreach ($openLoans as $key => $cur) {
+      $message[] = "Clearing open $key loans.";
+      // print_r($cur);
+      foreach ($cur as $key => $loan) {
+        $polo->cancel_loan_offer($loan['id']);
+      }
+    }
+  }
+  $messages = array();
+  date_default_timezone_set("CST6CDT");
+  $messages[] = "Updated: " . date('Y-m-d h:i a');
+  foreach ($loanLimits as $currency => $limit) {
 
-<div class="container">
-  <h1>Home!</h1>
-  <p>Welcome to the new PHP website. Please click around the site and let me know what you think.</p>
-  <p>This is the MVC version of the site.</p>
-  <div class="table-responsive">
-    <table class="table data-table table-striped table-bordered">
-      <thead>
-        <tr>
-          <th>Tournament Id</th>
-          <th>Name</th>
-          <th>Date</th>
-          <th>Type</th>
-          <th>Game</th>
-          <th>Rank</th>
-          <th>Buy In</th>
-          <th>Cashout</th>
-          <th>Profit</th>
-        </tr>
-      </thead>
-      <?php foreach ($histories as $key => $history): ?>
-        <tr>
-          <td><?= $history->tournament_id ?></td>
-          <td><?= $history->name ?></td>
-          <td><?= $history->date ?></td>
-          <td><?= $history->type ?></td>
-          <td><?= $history->game ?></td>
-          <td><?= $history->rank ?></td>
-          <td><?= number_format($history->buyin,2) ?></td>
-          <td><?= number_format($history->cashout,2) ?></td>
-          <td><?= number_format($history->cashout - $history->buyin,2)?></td>
-        </tr>
-      <?php endforeach; ?>
-    </table>
-  </div>
-</div>
-<script type="text/javascript">
-  jQuery(document).ready(function(){
-    $(document).ready(function() {
-        $('table').DataTable();
-    } );
-  });
-</script>
+    $rates = array();
+    $offers = $polo->get_loan_orders($currency)['offers'];
+    for ($i=0; $i < 20; $i++) {
+      $offer = $offers[$i];
+      $rate = $offer['rate']*100;
+      $rates[] = $rate;
+    }
+    $average = round(average($rates),4);
+    $messages[] = "Average rate of <b>$currency</b>: $average%";
+    $rate = $average;
+    $balances = $polo->get_balances();
+    $currentLendingBalance = 0;
+    if (isset($balances['lending'][$currency])) {
+      $currentLendingBalance = $balances['lending'][$currency];
+    }
+    if ($currentLendingBalance >= $limit) {
+      $loanAmount = $currentLendingBalance;
+      if ($currentLendingBalance > $loanMax[$currency]) {
+        $loanAmount = $loanMax[$currency];
+      }
+      $messages[] = "Loan $loanAmount $currency at $average%";
+      $days = 2;
+      if ($average > 0.25 && $currency == 'BTC') {
+        $days = 7;
+      }
+      $success = $polo->create_loan_offer($loanAmount, $rate, $currency, $days);
+      if ($success['success']) {
+        $messages[] = $success['message'];
+      }else{
+        $messages[] = "Error: ".$success['error'];
+      }
+      $lent = true;
+    }
+  }
+  $activeLoans = $polo->get_active_loans();
+  $data = array(
+    'lent' => $lent,
+    'messages' => $messages,
+    'activeLoans' => $activeLoans['provided']
+  );
+  if(is_array($data)){
+    extract($data);
+  }
+  require 'view.php';
+?>
