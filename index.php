@@ -1,4 +1,8 @@
 <?php
+  // echo "sleep for 5s \n";
+  // sleep(5);
+  // echo "wake up";
+  // die("x");
   function average($arr){
     return ($arr) ? array_sum($arr)/count($arr) : 0;
   }
@@ -33,7 +37,7 @@
       $rates[] = $rate;
     }
     $average = round(average($rates),4);
-    $messages[] = "Average rate of <b>$currency</b>: $average%";
+    $messages[] = "Average rate of $currency: $average%";
     $rate = $average;
     $balances = $polo->get_balances();
     $currentLendingBalance = 0;
@@ -68,5 +72,17 @@
   if(is_array($data)){
     extract($data);
   }
-  require 'view.php';
+
+  if (isset($_GET['min'])) {
+    require 'min_view.php';
+  }else{
+    require 'view.php';
+  }
+  $file = 'log.txt';
+  $content = "";
+  foreach ($messages as $key => $m) {
+    $content .= "$m\n\n";
+  }
+  // Open the file to get existing content
+  $current = file_put_contents($file,$content);
 ?>
